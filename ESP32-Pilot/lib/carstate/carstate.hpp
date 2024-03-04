@@ -9,7 +9,7 @@ typedef struct sendCan_s {
     uint8_t frame_data[8];
 } sendCan_t;
 
-typedef void (*CANFrameHandler) (sendCan_t * frame);
+typedef void (*CANFrameHandler) (sendCan_t * frame, sendCan_t * result);
 
 typedef struct frameMAP_s {
     uint32_t frame_id;
@@ -52,6 +52,28 @@ class CarState {
     public:
         CarState();
         ~CarState();
+
+        void SendCAN(float tstmp);
+        void BiggerBalls(float tstmp, uint8_t bus);
+        void Throttle(sendCan_t * frame, sendCan_t * result);
+        void Motor(sendCan_t * frame, sendCan_t * result);
+        void DriveState(sendCan_t * frame, sendCan_t * result);
+        void RightScroll(sendCan_t * frame, sendCan_t * result);
+        void VehicleSpeed(sendCan_t * frame, sendCan_t * result);
+        void LeftStalk(sendCan_t * frame, sendCan_t * result);
+        void TurnSignal(sendCan_t * frame, sendCan_t * result);
+        void SteerAngle(sendCan_t * frame, sendCan_t * result);
+        void BrakePedal(sendCan_t * frame, sendCan_t * result);
+        void VirtualLane(sendCan_t * frame, sendCan_t * result);
+        void DriverAssistState(sendCan_t * frame, sendCan_t * result);
+        bool EnoughClicksAlready();  // Prevent unintended triggering of the "Rainbow Road" Easter Egg
+        void RightStalk(sendCan_t * frame, sendCan_t * result);
+        void AutoPilotState(sendCan_t * frame, sendCan_t * result);
+        void DASSpeed(sendCan_t * frame, sendCan_t * result);
+        void PrintBits(sendCan_t * frame, sendCan_t * result);
+        void PrintBytes(sendCan_t * frame, sendCan_t * result);
+        void PrintBitsAndString(sendCan_t * frame, sendCan_t * result);
+
 
         frameMAP_t *Update[2];
 
