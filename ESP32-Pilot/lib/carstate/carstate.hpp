@@ -1,22 +1,33 @@
 #pragma once
 
 #include <Arduino.h>
-
-typedef struct sendCan_s {
-    float tstmp;
-    uint32_t frame_id;
-    uint8_t bus;
-    uint8_t frame_data[8];
-} sendCan_t;
-
-typedef void (*CANFrameHandler) (sendCan_t * frame, sendCan_t * result);
-
-typedef struct frameMAP_s {
-    uint32_t frame_id;
-    CANFrameHandler frame_handler;
-} frameMAP_t;
+#include "config.hpp"
+#include <Vector.h>
 
 class CarState {
+    private:
+        sendCan_t sendCanStorage[SEND_CAN_STORAGE_SIZE];
+        frameMAP_t VEHICLE_BUS_MAP[VEHICLE_BUS_ID_COUNT] = {
+            /* 0x118 */ {280,   &CarState::DriveState},
+            /* 0x129 */ {297,   &CarState::SteerAngle},
+            /* 0x229 */ {553,   &CarState::RightStalk},
+            /* 0x249 */ {585,   &CarState::LeftStalk},
+            /* 0x257 */ {599,   &CarState::VehicleSpeed},
+            /* 0x293 */ {659,   &CarState::Throttle},
+            /* 0x334 */ {820,   &CarState::Motor},
+            /* 0x353 */ {851,   &CarState::PrintBitsAndString},
+            /* 0x39D */ {925,   &CarState::BrakePedal},
+            /* 0x3C2 */ {962,   &CarState::RightScroll},
+            /* 0x3E9 */ {1001,  &CarState::DriverAssistState},
+            /* 0x3F5 */ {1013,  &CarState::TurnSignal}
+        };
+
+        frameMAP_t CHASSIS_BUS_MAP[CHASSIS_BUS_ID_COUNT] = {
+            /* 0x239 */ {569, &CarState::VirtualLane},
+            /* 0x2B9 */ {697, &CarState::DASSpeed},
+            /* 0x399 */ {921, &CarState::AutoPilotState}
+        };
+
     private:
         bool moreBalls;
         bool tempBalls;
@@ -40,43 +51,38 @@ class CarState {
         bool blinkersOn;
         bool closeToCenter;
 
-        sendCan_t sendCan;
-        uint8_t motor[8];// = [32] --> motor[0] = 0x4B
-        uint8_t throttleMode[8];// = [0,0,0,0,0,16] --> throttleMode[5] = 0x10
-        uint8_t histClick[25];// = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-        uint8_t rightStalkCRC[16];// = [75,93,98,76,78,210,246,67,170,249,131,70,32,62,52,73]
-        uint32_t ignorePIDs[48];// = [1000,1005,1060,1107,1132,1284,1316,1321,1359,1364,1448,1508,1524,1541,1542,1547,1550,1588,1651,1697,1698,1723,
+        Vector<sendCan_t> sendCAN;
+        uint8_t motor[8]; // = [32] --> motor[0] = 0x4B
+        uint8_t throttleMode[8]; // = [0,0,0,0,0,16] --> throttleMode[5] = 0x10
+        uint8_t histClick[25]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        const uint8_t * rightStalkCRC; // = [75,93,98,76,78,210,246,67,170,249,131,70,32,62,52,73]
+        const uint32_t * ignorePIDs; // = [1000,1005,1060,1107,1132,1284,1316,1321,1359,1364,1448,1508,1524,1541,1542,1547,1550,1588,1651,1697,1698,1723,
                            //2036,313,504,532,555,637,643,669,701,772,777,829,854,855,858,859,866,871,872,896,900,928,935,965,979,997]
-
 
     public:
         CarState();
         ~CarState();
 
-        void SendCAN(float tstmp);
+        void SendCAN(float tstmp, void * result);
         void BiggerBalls(float tstmp, uint8_t bus);
-        void Throttle(sendCan_t * frame, sendCan_t * result);
-        void Motor(sendCan_t * frame, sendCan_t * result);
-        void DriveState(sendCan_t * frame, sendCan_t * result);
-        void RightScroll(sendCan_t * frame, sendCan_t * result);
-        void VehicleSpeed(sendCan_t * frame, sendCan_t * result);
-        void LeftStalk(sendCan_t * frame, sendCan_t * result);
-        void TurnSignal(sendCan_t * frame, sendCan_t * result);
-        void SteerAngle(sendCan_t * frame, sendCan_t * result);
-        void BrakePedal(sendCan_t * frame, sendCan_t * result);
-        void VirtualLane(sendCan_t * frame, sendCan_t * result);
-        void DriverAssistState(sendCan_t * frame, sendCan_t * result);
+        void Throttle(sendCan_t * frame, void * result);
+        void Motor(sendCan_t * frame, void * result);
+        void DriveState(sendCan_t * frame, void * result);
+        void RightScroll(sendCan_t * frame, void * result);
+        void VehicleSpeed(sendCan_t * frame, void * result);
+        void LeftStalk(sendCan_t * frame, void * result);
+        void TurnSignal(sendCan_t * frame, void * result);
+        void SteerAngle(sendCan_t * frame, void * result);
+        void BrakePedal(sendCan_t * frame, void * result);
+        void VirtualLane(sendCan_t * frame, void * result);
+        void DriverAssistState(sendCan_t * frame, void * result);
         bool EnoughClicksAlready();  // Prevent unintended triggering of the "Rainbow Road" Easter Egg
-        void RightStalk(sendCan_t * frame, sendCan_t * result);
-        void AutoPilotState(sendCan_t * frame, sendCan_t * result);
-        void DASSpeed(sendCan_t * frame, sendCan_t * result);
-        void PrintBits(sendCan_t * frame, sendCan_t * result);
-        void PrintBytes(sendCan_t * frame, sendCan_t * result);
-        void PrintBitsAndString(sendCan_t * frame, sendCan_t * result);
+        void RightStalk(sendCan_t * frame, void * result);
+        void AutoPilotState(sendCan_t * frame, void * result);
+        void DASSpeed(sendCan_t * frame, void * result);
+        void PrintBits(sendCan_t * frame, void * result);
+        void PrintBytes(sendCan_t * frame, void * result);
+        void PrintBitsAndString(sendCan_t * frame, void * result);
 
-
-        frameMAP_t *Update[2];
-
-        
-
+        frameMAP_t *Update[BUS_COUNT];
 };
