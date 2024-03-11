@@ -41,8 +41,8 @@ class CarState {
         float lastAutoSteerTime; // maybe this should be changed to int or uint = 0.
         uint8_t accelPedal;
         bool parked; // True
-        uint32_t motorPID;
-        uint32_t throttlePID;
+        uint16_t motorPID;
+        uint16_t throttlePID;
         uint8_t lastStalk;
         bool autopilotReady; // True
         uint8_t handsOnState;
@@ -56,8 +56,11 @@ class CarState {
         uint8_t throttleMode[8]; // = [0,0,0,0,0,16] --> throttleMode[5] = 0x10
         uint8_t histClick[25]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         const uint8_t * rightStalkCRC; // = [75,93,98,76,78,210,246,67,170,249,131,70,32,62,52,73]
-        const uint32_t * ignorePIDs; // = [1000,1005,1060,1107,1132,1284,1316,1321,1359,1364,1448,1508,1524,1541,1542,1547,1550,1588,1651,1697,1698,1723,
+        const uint16_t * ignorePIDs; // = [1000,1005,1060,1107,1132,1284,1316,1321,1359,1364,1448,1508,1524,1541,1542,1547,1550,1588,1651,1697,1698,1723,
                            //2036,313,504,532,555,637,643,669,701,772,777,829,854,855,858,859,866,871,872,896,900,928,935,965,979,997]
+        
+    private:
+        uint16_t get_CRC(uint8_t* frame_data, uint8_t frame_counter, uint8_t frame_data_len, uint16_t frame_id);
 
     public:
         CarState();

@@ -30,7 +30,7 @@ CarState::CarState() {
     memset(throttleMode, 0, sizeof(throttleMode));
     memset(histClick, 0, sizeof(histClick));
 
-    motor[0] = 0x48;
+    motor[0] = 0x20;
     throttleMode[5] = 0x10;
     rightStalkCRC = RIGHT_STALK_CRC;
     ignorePIDs = IGNORE_PIDS;
@@ -39,11 +39,37 @@ CarState::CarState() {
     Update[CHASSIS_BUS] = CHASSIS_BUS_MAP;
 }
 
+uint16_t CarState::get_CRC(uint8_t * frame_data, uint8_t frame_counter, uint8_t frame_data_len, uint16_t frame_id) {
+    if (frame_data == NULL) {
+        return 0;
+    }
+
+    uint16_t result = 0;
+
+    for (int i = 0; i < frame_data_len; ++i) {
+        result += frame_data[i];
+    }
+
+    result += frame_counter;
+    result += frame_id >> 8;
+    result += frame_id & 0xFF;
+    result %= 0x100;
+
+    return result;
+}
+
 void CarState::SendCAN(float tstmp, void * result) {
     return;
 }
 
 void CarState::BiggerBalls(float tstmp, uint8_t bus) {
+    if ((this->moreBalls || this->tempBalls) && (this->motor[0] & 0x20 == 0) && (this->throttleMode[5] & 0x10 == 0)) {
+        // override throttle mode to Standard / Sport
+        this->motor[0] = (this->motor[0] + 0x20) & 0xFF; // UI_pedalMap
+        this->motor[6] = (this->motor[6] + 0x10) & 0xFF; // counter value
+        this->motor[7] = (this->motor[7] + 0x30) & 0xFF; // CRC value
+
+    }
     return;
 }
 

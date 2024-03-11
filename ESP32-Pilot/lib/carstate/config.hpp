@@ -9,7 +9,7 @@
 #define VEHICLE_BUS_ID_COUNT 12
 #define CHASSIS_BUS_ID_COUNT 3
 
-const uint32_t IGNORE_PIDS[48] = {
+const uint16_t IGNORE_PIDS[48] = {
     1000, 1005, 1060, 1107,
     1132, 1284, 1316, 1321,
     1359, 1364, 1448, 1508,
@@ -38,7 +38,7 @@ const uint8_t RIGHT_STALK_CRC[16] = {
 
 typedef struct sendCan_s {
     float tstmp;
-    uint32_t frame_id;
+    uint16_t frame_id;
     uint8_t bus;
     uint8_t frame_data[CAN_FRAME_LEN];
 } sendCan_t;
@@ -48,6 +48,6 @@ class CarState;
 typedef void (CarState::*CANFrameHandler) (sendCan_t * frame, void * result);
 
 typedef struct frameMAP_s {
-    uint32_t frame_id;
+    uint16_t frame_id;
     CANFrameHandler frame_handler;
 } frameMAP_t;
