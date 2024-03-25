@@ -7,38 +7,41 @@
 class CarState {
     private:
         sendCan_t sendCanStorage[SEND_CAN_STORAGE_SIZE];
+        //uint8_t histClickStorage[25]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        uint8_t histClickStorage[10]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         frameMAP_t VEHICLE_BUS_MAP[VEHICLE_BUS_ID_COUNT] = {
-            /* 0x118 */ {280,   &CarState::DriveState},
-            /* 0x129 */ {297,   &CarState::SteerAngle},
-            /* 0x229 */ {553,   &CarState::RightStalk},
-            /* 0x249 */ {585,   &CarState::LeftStalk},
-            /* 0x257 */ {599,   &CarState::VehicleSpeed},
-            /* 0x293 */ {659,   &CarState::Throttle},
-            /* 0x334 */ {820,   &CarState::Motor},
-            /* 0x353 */ {851,   &CarState::PrintBitsAndString},
-            /* 0x39D */ {925,   &CarState::BrakePedal},
-            /* 0x3C2 */ {962,   &CarState::RightScroll},
-            /* 0x3E9 */ {1001,  &CarState::DriverAssistState},
-            /* 0x3F5 */ {1013,  &CarState::TurnSignal}
+            {ID_118_DRIVE_SYSTEM_STATUS,    &CarState::DriveState},
+            {ID_129_STEERING_ANGLE,         &CarState::SteerAngle},
+            {ID_229_GEAR_LEVER,             &CarState::RightStalk},
+            {ID_249_LEFT_STALK,             &CarState::LeftStalk},
+            {ID_257_DL_SPEED,               &CarState::VehicleSpeed},
+            {ID_293_UI_CHASSIS_CONTROL,     &CarState::Throttle},
+            {ID_334_UI_POWERTRAIN_CONTROL,  &CarState::Motor},
+            {ID_353_UI_STATUS,              &CarState::PrintBitsAndString},
+            {ID_39D_IBST_STATUS,            &CarState::BrakePedal},
+            {ID_3C2_VCLEFT_SWITCH_STATUS,   &CarState::RightScroll},
+            {ID_3E9_DAS_BODY_CONTROLS,      &CarState::DriverAssistState},
+            {ID_3F5_VCFRONT_LIGHTNING,      &CarState::TurnSignal}
         };
 
         frameMAP_t CHASSIS_BUS_MAP[CHASSIS_BUS_ID_COUNT] = {
-            /* 0x239 */ {569, &CarState::VirtualLane},
-            /* 0x2B9 */ {697, &CarState::DASSpeed},
-            /* 0x399 */ {921, &CarState::AutoPilotState}
+            {ID_239_DAS_LANES,              &CarState::VirtualLane},
+            {ID_2B9_DAS_CONTROL,            &CarState::DASSpeed},
+            {ID_399_DAS_STATUS,             &CarState::AutoPilotState}
         };
 
     private:
         bool moreBalls;
         bool tempBalls;
-        bool enabled;
+        bool APenabled;
+        bool TACCenabled;
         uint8_t autoSteer; // need to recheck based on dbc
-        float nextClickTime; // maybe this should be changed to int or uint = 0.
+        double nextClickTime; // maybe this should be changed to int or uint = 0.
         uint8_t speed;
         uint8_t leftStalkStatus;
-        uint32_t steerAngle;
+        int steerAngle;
         uint8_t lastAPStatus;
-        float lastAutoSteerTime; // maybe this should be changed to int or uint = 0.
+        double lastAutoSteerTime; // maybe this should be changed to int or uint = 0.
         uint8_t accelPedal;
         bool parked; // True
         uint16_t motorPID;
@@ -54,7 +57,7 @@ class CarState {
         Vector<sendCan_t> sendCAN;
         uint8_t motor[8]; // = [32] --> motor[0] = 0x4B
         uint8_t throttleMode[8]; // = [0,0,0,0,0,16] --> throttleMode[5] = 0x10
-        uint8_t histClick[25]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        Vector<uint8_t> histClick;
         const uint8_t * rightStalkCRC; // = [75,93,98,76,78,210,246,67,170,249,131,70,32,62,52,73]
         const uint16_t * ignorePIDs; // = [1000,1005,1060,1107,1132,1284,1316,1321,1359,1364,1448,1508,1524,1541,1542,1547,1550,1588,1651,1697,1698,1723,
                            //2036,313,504,532,555,637,643,669,701,772,777,829,854,855,858,859,866,871,872,896,900,928,935,965,979,997]
@@ -86,6 +89,7 @@ class CarState {
         void PrintBits(sendCan_t * frame, void * result);
         void PrintBytes(sendCan_t * frame, void * result);
         void PrintBitsAndString(sendCan_t * frame, void * result);
+        bool Parked();
 
         frameMAP_t *Update[BUS_COUNT];
 };
