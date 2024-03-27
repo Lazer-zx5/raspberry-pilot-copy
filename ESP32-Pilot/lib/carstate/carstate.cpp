@@ -15,7 +15,6 @@ CarState::CarState() {
     accelPedal = 0;
     parked = true; // True
     motorPID = 0;
-    throttlePID = 0;
     lastStalk = 0;
     autopilotReady = true; // True
     handsOnState = 0;
@@ -28,7 +27,7 @@ CarState::CarState() {
     sendCAN.setStorage(sendCanStorage, sizeof(sendCanStorage) / sizeof(sendCanStorage[0]));
     sendCAN.clear();
     memset(motor, 0, sizeof(motor));
-    memset(throttleMode, 0, sizeof(throttleMode));
+    memset(chassisControl, 0, sizeof(chassisControl));
     memset(histClickStorage, 0, sizeof(histClickStorage));
     histClick.setStorage(histClickStorage, sizeof(histClickStorage) / sizeof(histClickStorage[0]));
     histClick.clear();
@@ -37,7 +36,6 @@ CarState::CarState() {
     }
 
     motor[0] = 0x20;
-    throttleMode[5] = 0x10;
     rightStalkCRC = RIGHT_STALK_CRC;
     ignorePIDs = IGNORE_PIDS;
 
@@ -50,7 +48,7 @@ bool CarState::Parked()
     return this->parked;
 }
 
-uint16_t CarState::get_CRC(uint8_t * frame_data, uint8_t frame_counter, uint8_t frame_data_len, uint16_t frame_id) {
+uint8_t CarState::get_CRC(uint8_t * frame_data, uint8_t frame_counter, uint8_t frame_data_len, uint16_t frame_id) {
     if (frame_data == NULL) {
         return 0;
     }
@@ -66,7 +64,7 @@ uint16_t CarState::get_CRC(uint8_t * frame_data, uint8_t frame_counter, uint8_t 
     result += frame_id & 0xFF;
     result %= 0x100;
 
-    return result;
+    return result & 0xFF;
 }
 
 void CarState::SendCAN(float tstmp, void * result) {
@@ -86,7 +84,7 @@ void CarState::SendCAN(float tstmp, void * result) {
 }
 
 void CarState::BiggerBalls(float tstmp, uint8_t bus) {
-    if ((this->moreBalls || this->tempBalls) && ((this->motor[0] & 0x20) == 0) && ((this->throttleMode[5] & 0x10) == 0)) {
+    if ((this->moreBalls || this->tempBalls) && ((this->motor[0] & 0x20) == 0)) {
         // override throttle mode to Standard / Sport
         this->motor[0] = (this->motor[0] + 0x20) & 0xFF; // UI_pedalMap
         this->motor[6] = (this->motor[6] + 0x10) & 0xFF; // counter value
@@ -95,18 +93,26 @@ void CarState::BiggerBalls(float tstmp, uint8_t bus) {
         memcpy(temp.frame_data, this->motor, sizeof(this->motor));
         this->sendCAN.push_back(temp);
         this->motor[0] = 0x20;
-        this->throttleMode[5] = 0x10;
     }
 
     return;
 }
 
-void CarState::Throttle(sendCan_t * frame, void * result) {
-    this->throttlePID = frame->frame_id;
-    memcpy(this->throttleMode, frame->frame_data, sizeof(this->throttleMode));
-    this->autoSteer = frame->frame_data[4] & 0x40;
-    BiggerBalls(frame->tstmp, frame->bus);
+void CarState::ChassisControl(sendCan_t * frame, void * result) {
+#if 0 // currently not working
+    chassisControlPID = frame->frame_id;
+    memcpy(this->chassisControl, frame->frame_data, sizeof(this->chassisControl));
+    this->chassisControl[3] |= BIT0; // autoLaneChangeEnable
+    this->chassisControl[5] |= BIT6; // redLightStopSignEnable
+    this->chassisControl[6] = (this->chassisControl[6] + 0x10) & 0xFF; // counter value
+    this->chassisControl[7] = this->get_CRC(this->chassisControl, this->chassisControl[6], 6, this->chassisControlPID);
+
+    sendCan_t temp = { .tstmp = frame->tstmp, .frame_len = frame->frame_len, .frame_id = this->chassisControlPID, .bus = frame->bus, .frame_data = {0} };
+    memcpy(temp.frame_data, this->chassisControl, sizeof(this->chassisControl));
+    this->sendCAN.push_back(temp);
+
     SendCAN(frame->tstmp, result);
+#endif
     return;
 }
 
@@ -219,7 +225,6 @@ void CarState::DriverAssistState(sendCan_t * frame, void * result) {
 
 bool CarState::EnoughClicksAlready() {
     // TODO: currently not used: need to investigate
-    return false; // for testing
 
     uint8_t sum = 0;
     for (int i = (this->histClick.max_size() - 1); i >= 0; i--) {
@@ -241,17 +246,29 @@ void CarState::RightStalk(sendCan_t * frame, void * result) {
         ((frame->tstmp > this->nextClickTime) || this->closeToCenter) &&
         ((this->lastAPStatus == 0x21) || (abs(this->steerAngle) < 60))) {
         if (this->TACCenabled && !this->APenabled) {
+            // Turn the AP on
             sendCan_t temp = { .tstmp = frame->tstmp, .frame_len = frame->frame_len, .frame_id = frame->frame_id, .bus = frame->bus, .frame_data = {0} };
             uint8_t counter = frame->frame_data[1] & 0x0F;
             temp.frame_data[0] = this->rightStalkCRC[counter];
             temp.frame_data[1] = (0x30 | ((counter + 1) % 16));
+            temp.tstmp += 0.05;
             this->sendCAN.push_back(temp);
             this->histClick.push_back(1);
             this->nextClickTime = max(this->nextClickTime, frame->tstmp + 0.5);
             this->leftStalkStatus = 0;
             this->lastStalk = temp.frame_data[1];
         } else if (!this->TACCenabled && this->APenabled && !this->EnoughClicksAlready()) {
-            //Serial.printf("Sending. Counter = %d\t%d\n", this->APStatecounter, this->APenabled);
+            // Keep emulating for hands on notification
+            sendCan_t temp = { .tstmp = frame->tstmp, .frame_len = frame->frame_len, .frame_id = frame->frame_id, .bus = frame->bus, .frame_data = {0} };
+            uint8_t counter = frame->frame_data[1] & 0x0F;
+            temp.frame_data[0] = this->rightStalkCRC[counter];
+            temp.frame_data[1] = (0x30 | ((counter + 1) % 16));
+            temp.tstmp += 0.05;
+            this->sendCAN.push_back(temp);
+            this->histClick.push_back(1);
+            this->nextClickTime = max(this->nextClickTime, frame->tstmp + 0.5);
+            this->leftStalkStatus = 0;
+            this->lastStalk = temp.frame_data[1];
         } else {
             if (((frame->frame_data[1] >> 4) == 3) && ((this->lastStalk >> 4) != 3)) { 
                 // clicked but autopilot is not engaged ex. gear change

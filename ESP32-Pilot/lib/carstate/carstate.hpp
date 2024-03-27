@@ -7,15 +7,14 @@
 class CarState {
     private:
         sendCan_t sendCanStorage[SEND_CAN_STORAGE_SIZE];
-        //uint8_t histClickStorage[25]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-        uint8_t histClickStorage[10]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        uint8_t histClickStorage[25]; // = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         frameMAP_t VEHICLE_BUS_MAP[VEHICLE_BUS_ID_COUNT] = {
             {ID_118_DRIVE_SYSTEM_STATUS,    &CarState::DriveState},
             {ID_129_STEERING_ANGLE,         &CarState::SteerAngle},
             {ID_229_GEAR_LEVER,             &CarState::RightStalk},
             {ID_249_LEFT_STALK,             &CarState::LeftStalk},
             {ID_257_DL_SPEED,               &CarState::VehicleSpeed},
-            {ID_293_UI_CHASSIS_CONTROL,     &CarState::Throttle},
+            {ID_293_UI_CHASSIS_CONTROL,     &CarState::ChassisControl},
             {ID_334_UI_POWERTRAIN_CONTROL,  &CarState::Motor},
             {ID_353_UI_STATUS,              &CarState::PrintBitsAndString},
             {ID_39D_IBST_STATUS,            &CarState::BrakePedal},
@@ -45,7 +44,7 @@ class CarState {
         uint8_t accelPedal;
         bool parked; // True
         uint16_t motorPID;
-        uint16_t throttlePID;
+        uint16_t chassisControlPID;
         uint8_t lastStalk;
         bool autopilotReady; // True
         uint8_t handsOnState;
@@ -56,14 +55,14 @@ class CarState {
 
         Vector<sendCan_t> sendCAN;
         uint8_t motor[8]; // = [32] --> motor[0] = 0x4B
-        uint8_t throttleMode[8]; // = [0,0,0,0,0,16] --> throttleMode[5] = 0x10
+        uint8_t chassisControl[8]; // = [0,0,0,0,0,16] --> throttleMode[5] = 0x10
         Vector<uint8_t> histClick;
         const uint8_t * rightStalkCRC; // = [75,93,98,76,78,210,246,67,170,249,131,70,32,62,52,73]
         const uint16_t * ignorePIDs; // = [1000,1005,1060,1107,1132,1284,1316,1321,1359,1364,1448,1508,1524,1541,1542,1547,1550,1588,1651,1697,1698,1723,
                            //2036,313,504,532,555,637,643,669,701,772,777,829,854,855,858,859,866,871,872,896,900,928,935,965,979,997]
         
     private:
-        uint16_t get_CRC(uint8_t* frame_data, uint8_t frame_counter, uint8_t frame_data_len, uint16_t frame_id);
+        uint8_t get_CRC(uint8_t* frame_data, uint8_t frame_counter, uint8_t frame_data_len, uint16_t frame_id);
 
     public:
         CarState();
@@ -71,7 +70,7 @@ class CarState {
 
         void SendCAN(float tstmp, void * result);
         void BiggerBalls(float tstmp, uint8_t bus);
-        void Throttle(sendCan_t * frame, void * result);
+        void ChassisControl(sendCan_t * frame, void * result);
         void Motor(sendCan_t * frame, void * result);
         void DriveState(sendCan_t * frame, void * result);
         void RightScroll(sendCan_t * frame, void * result);

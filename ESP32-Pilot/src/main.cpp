@@ -6,7 +6,6 @@
 CarState CS;
 sendCan_t sendCanStorage[SEND_CAN_STORAGE_SIZE];
 Vector<sendCan_t> sendCAN;
-uint64_t epoch = 0;
 double loopStart = 0;
 
 #if LOG
@@ -20,25 +19,9 @@ void printFrame(CAN_FRAME* message) {
 }
 #endif
 
-
-void epochFrame(CAN_FRAME* message) {
-	uint64_t new_epoch = 0;
-	for (int i = 0; i < message->length; i++) {
-		new_epoch |= (message->data.byte[i] << ((message->length - i - 1) * 8));
-	}
-	if (epoch != new_epoch) {
-		epoch = new_epoch;
-	}
-}
-
 void processFrame(CAN_FRAME* message) {
 	sendCan_t frame;
 	CAN_FRAME can_message = *message;
-	loopStart = millis();
-
-	if (epoch == 0) {
-		return;
-	}
 
 	for (int i = 0; i < VEHICLE_BUS_ID_COUNT; ++i) {
 		if (can_message.id == CS.Update[VEHICLE_BUS][i].frame_id) {
@@ -46,27 +29,12 @@ void processFrame(CAN_FRAME* message) {
 			frame.frame_id = can_message.id;
 			frame.frame_len = can_message.length;
 			memcpy(frame.frame_data, can_message.data.uint8, CAN_FRAME_LEN);
-			frame.tstmp = (double)epoch + (double)(loopStart / 1000);
+			frame.tstmp = (double)(loopStart / 1000);
 			(CS.*(CS.Update[VEHICLE_BUS][i].frame_handler))(&frame, &sendCAN);
 			break;
 		}
 	}
 
-	if (!sendCAN.empty()) {
-		for (int i = 0; i < sendCAN.size(); ++i) {
-			CAN_FRAME can_frame;
-			can_frame.rtr = 0;
-			can_frame.id = sendCAN[i].frame_id;
-			memcpy(can_frame.data.uint8, sendCAN[i].frame_data, sendCAN[i].frame_len);
-			can_frame.extended = false;
-			can_frame.length = sendCAN[i].frame_len;
-			CAN0.sendFrame(can_frame);
-#if LOG
-			printFrame(&can_frame);
-#endif
-		}
-		sendCAN.clear();
-	}
 }
 
 void setup() {
@@ -84,7 +52,6 @@ void setup() {
 
 	uint16_t mask = 0x07FF;
 
-	CAN0.setRXFilter(0, 0x528, mask, false);
 	CAN0.setRXFilter(1, ID_118_DRIVE_SYSTEM_STATUS, mask, false);
 	CAN0.setRXFilter(2, ID_129_STEERING_ANGLE, mask, false);
 	CAN0.setRXFilter(3, ID_229_GEAR_LEVER, mask, false);
@@ -104,7 +71,6 @@ void setup() {
 	CAN1.setRXFilter(15,	ID_399_DAS_STATUS,           	mask, false);
 	*/
 
-	CAN0.setCallback(0, epochFrame); //callback on that first special filter
 	for (int i = 1; i < 13; i++) {
 		CAN0.setCallback(i, processFrame); //callback on that first special filter
 	}
@@ -115,4 +81,21 @@ void setup() {
 }
 
 void loop() {
+	loopStart = millis();
+
+	if (!sendCAN.empty()) {
+		for (int i = 0; i < sendCAN.size(); ++i) {
+			CAN_FRAME can_frame;
+			can_frame.rtr = 0;
+			can_frame.id = sendCAN[i].frame_id;
+			memcpy(can_frame.data.uint8, sendCAN[i].frame_data, sendCAN[i].frame_len);
+			can_frame.extended = false;
+			can_frame.length = sendCAN[i].frame_len;
+			CAN0.sendFrame(can_frame);
+#if LOG
+			printFrame(&can_frame);
+#endif
+		}
+		sendCAN.clear();
+	}
 }
