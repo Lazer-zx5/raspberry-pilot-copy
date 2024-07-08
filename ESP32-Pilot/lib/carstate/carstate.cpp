@@ -22,6 +22,8 @@ CarState::CarState() {
     avgLaneCenter = 100.0; // 100.0
     blinkersOn = false;
     closeToCenter = false;
+    hazardButtonPressed = false;
+    BLE_condition = READY;
     
     memset(sendCanStorage, 0, sizeof(sendCanStorage));
     sendCAN.setStorage(sendCanStorage, sizeof(sendCanStorage) / sizeof(sendCanStorage[0]));
@@ -43,8 +45,7 @@ CarState::CarState() {
     Update[CHASSIS_BUS] = CHASSIS_BUS_MAP;
 }
 
-bool CarState::Parked()
-{
+bool CarState::Parked() {
     return this->parked;
 }
 
@@ -172,11 +173,16 @@ void CarState::TurnSignal(sendCan_t * frame, void * result) {
         if (this->leftStalkStatus == 0x04 || this->leftStalkStatus == 0x08) {
             delay = 0.5;
         } else {
-            delay = 4.0;
+            delay = 2.0;
         }
         this->nextClickTime = max(this->nextClickTime, frame->tstmp + delay);
     }
     this->blinkersOn = frame->frame_data[5] > 0;
+    this->hazardButtonPressed = ((frame->frame_data[0] >> 4) == 1) ? true : false; 
+    if (this->hazardButtonPressed && !this->parked) {
+        this->gate_open();
+    }
+
     SendCAN(frame->tstmp, result);
     return;
 }
@@ -308,4 +314,80 @@ void CarState::PrintBitsAndString(sendCan_t * frame, void * result) {
 
 CarState::~CarState() {
     //data = 0;
+}
+
+
+int CarState::connect(BLEClient* pClient) {
+    bool try_connect = true;
+    int attempt_count = 0;
+
+#if LOG
+    Serial.printf("\nTrying to connect to the gate...\n");
+#endif
+
+    while (try_connect && attempt_count != RECON_COUNT) {
+        attempt_count += 1;
+#if LOG
+        Serial.printf("Attempt no %d/%d ...\n", attempt_count, RECON_COUNT);
+#endif
+        if (pClient->connect(BLEAddress(GATE_ADDRESS_1))) {
+            try_connect = false;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+void CarState::gate_open() {
+    if (BLE_condition == READY) {
+        BLE_condition = BUSY;
+
+        BLEClient* pClient = BLEDevice::createClient();
+        if (this->connect(pClient) != 0) {
+#if LOG
+            Serial.println("Connection Failed");
+#endif
+            BLE_condition = READY;
+            return;
+        } else {
+#if LOG
+            Serial.println("Connected!");
+#endif
+        }
+
+        BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
+        if (pRemoteService == nullptr) {
+#if LOG
+            Serial.println("Failed to get service");
+#endif
+            BLE_condition = READY;
+            return;
+        } else {
+#if LOG
+            Serial.println("Got service");
+#endif
+        }
+
+        BLERemoteCharacteristic* pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
+        if (pRemoteCharacteristic == nullptr) {
+#if LOG
+            Serial.println("Failed to get characteristic");
+#endif
+            BLE_condition = READY;
+            return;
+        } else {
+#if LOG
+            Serial.println("Got characteristic");
+#endif
+        }
+
+        char value[15] = { '3', '5', '0', '9', '3', '6', '9', '6', '0', '2', '3', '1', '7', '5', '2' };
+
+#if LOG
+        Serial.println("Opening the gate!");
+#endif
+        pRemoteCharacteristic->writeValue(value, sizeof(value));
+        BLE_condition = READY;
+    }
 }

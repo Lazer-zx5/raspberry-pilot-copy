@@ -51,7 +51,10 @@ class CarState {
         bool brakePressed;
         float avgLaneCenter; // 100.0
         bool blinkersOn;
+        bool hazardButtonPressed;
         bool closeToCenter;
+
+        int BLE_condition;
 
         Vector<sendCan_t> sendCAN;
         uint8_t motor[8]; // = [32] --> motor[0] = 0x4B
@@ -89,6 +92,8 @@ class CarState {
         void PrintBytes(sendCan_t * frame, void * result);
         void PrintBitsAndString(sendCan_t * frame, void * result);
         bool Parked();
+        int connect(BLEClient* pClient);
+        void gate_open();
 
         frameMAP_t *Update[BUS_COUNT];
 };

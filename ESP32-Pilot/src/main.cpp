@@ -3,6 +3,11 @@
 #include "carstate.hpp"
 #include "Vector.h"
 
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+
 CarState CS;
 sendCan_t sendCanStorage[SEND_CAN_STORAGE_SIZE];
 Vector<sendCan_t> sendCAN;
@@ -19,6 +24,34 @@ void printFrame(CAN_FRAME* message) {
 }
 #endif
 
+void setup_BLE_MAC()
+{
+	uint8_t newMAC[6] = { 0xdc, 0xe5, 0x5b, 0x07, 0xf6, 0x56 };
+
+	if (esp_base_mac_addr_set(newMAC) == ESP_OK) {
+#if LOG
+		Serial.println("MAC address OK");
+#endif
+	} else {
+#if LOG
+		Serial.println("MAC failed");
+#endif
+		return;
+	}
+
+	uint8_t base[6];
+	esp_read_mac(base, ESP_MAC_BT);
+
+#if LOG
+	Serial.print("ESP32 Board BT MAC Address:  ");
+	for (int i = 0; i < 5; i++) {
+		Serial.printf("%02X:", base[i]);
+	}
+	Serial.printf("%02X\n", base[5]);
+#endif
+
+}
+
 void processFrame(CAN_FRAME* message) {
 	sendCan_t frame;
 	CAN_FRAME can_message = *message;
@@ -34,10 +67,13 @@ void processFrame(CAN_FRAME* message) {
 			break;
 		}
 	}
-
 }
 
 void setup() {
+	setup_BLE_MAC();
+
+	BLEDevice::init("");
+
 	memset(sendCanStorage, 0, sizeof(sendCanStorage));
 	sendCAN.setStorage(sendCanStorage, sizeof(sendCanStorage));
 	sendCAN.clear();
@@ -46,6 +82,8 @@ void setup() {
 	Serial.begin(1000000);
 	Serial.println(" CAN...............INIT");
 #endif
+
+	delay(5000);
 
 	CAN0.setCANPins(GPIO_NUM_5, GPIO_NUM_4);
 	CAN0.begin(500000); // 500Kbps

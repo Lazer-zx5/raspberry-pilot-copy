@@ -1,6 +1,16 @@
 #pragma once
 
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+
 #define LOG 0
+#define READY               1
+#define BUSY                0
+#define RECON_COUNT         5
+
+#define GATE_ADDRESS_1 "00:21:7e:71:aa:fa"
 
 #define SEND_CAN_STORAGE_SIZE 20
 #define BUS_COUNT 2
@@ -72,3 +82,8 @@ typedef struct frameMAP_s {
     uint16_t frame_id;
     CANFrameHandler frame_handler;
 } frameMAP_t;
+
+
+static BLEUUID serviceUUID("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+static BLEUUID    charUUID("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+ 
