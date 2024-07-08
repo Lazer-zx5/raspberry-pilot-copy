@@ -13,3 +13,10 @@
 12. Sport mode. (research)
 13. Traffic light control. (research)
 14. Stop sign control. (research)
+
+###########################################################
+
+Need to add an install script 
+Need to add an autorun script
+Need to document raspberry pi changes for the current hardware.
+Need to research the CAN packets transmission timmings and delays.
