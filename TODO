@@ -20,3 +20,5 @@ Need to add an install script
 Need to add an autorun script
 Need to document raspberry pi changes for the current hardware.
 Need to research the CAN packets transmission timmings and delays.
+Need to add a configuration files (python/JSON).
+Need to design modular arcitecture for future BLE/WIFI/Mobile App control/communication.
