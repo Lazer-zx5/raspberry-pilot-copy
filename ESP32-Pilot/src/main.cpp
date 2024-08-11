@@ -70,10 +70,6 @@ void processFrame(CAN_FRAME* message) {
 }
 
 void setup() {
-	setup_BLE_MAC();
-
-	BLEDevice::init("");
-
 	memset(sendCanStorage, 0, sizeof(sendCanStorage));
 	sendCAN.setStorage(sendCanStorage, sizeof(sendCanStorage));
 	sendCAN.clear();
@@ -82,9 +78,6 @@ void setup() {
 	Serial.begin(1000000);
 	Serial.println(" CAN...............INIT");
 #endif
-
-	delay(5000);
-
 	CAN0.setCANPins(GPIO_NUM_5, GPIO_NUM_4);
 	CAN0.begin(500000); // 500Kbps
 
@@ -116,6 +109,12 @@ void setup() {
 #ifdef LOG
 	Serial.println(" CAN............500Kbps");
 #endif
+
+	delay(5000);
+
+	setup_BLE_MAC();
+
+	BLEDevice::init("");
 }
 
 void loop() {
