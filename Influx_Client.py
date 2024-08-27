@@ -4,7 +4,7 @@ from influxdb import InfluxDBClient
 
 influx = InfluxDBClient('localhost', 8086, '', '', 'carDB')
 influxLineString = ""
-canFormatString = "CANData,user=%s,src=%d,pid=%s d1=%di,d2=%di %0.0f\n"
+canFormatString = "CANData,user=%s,src=%s,pid=%s d1=%di,d2=%di %0.0f\n"
 
 class Influx_Client():
     def __init__(self, panda_serial):

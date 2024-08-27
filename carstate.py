@@ -1,11 +1,8 @@
-MIN_REGEN_PERCENT = 10   # Must be increments of 5%
-MAX_REGEN_PERCENT = 100  # Must be increments of 5%
-MIN_REGEN_AFTER_SPEED = 70
-MAX_REGEN_BELOW_SPEED = 40
+from collections import namedtuple
+import logging
+import os
+import subprocess
 
-REGEN_SLOPE = (MIN_REGEN_AFTER_SPEED - MAX_REGEN_BELOW_SPEED) / (0.2 * (MAX_REGEN_PERCENT - MIN_REGEN_PERCENT))
-MAX_ADJUST = (100 - MIN_REGEN_PERCENT) * 0.2
-MIN_ADJUST = (100 - MAX_REGEN_PERCENT) * 0.2
 
 class CarState():
     def __init__(self):
@@ -31,6 +28,7 @@ class CarState():
         self.autoEngage = 0
         self.avgLaneCenter = 100.
         self.blinkersOn = False
+        self.hazardButtonPressed = False
         self.closeToCenter = False
         self.logFile = None
         self.accelerating = False
@@ -52,6 +50,23 @@ class CarState():
             else:
                 return None
 
+        def start_child_process():
+            process = subprocess.Popen(["python", "ble.py"], start_new_session=True)
+            return process
+
+        def wait_for_child_process(process):
+            output, errors = process.communicate()
+            if output:
+                print("Child process output:")
+                print(output.decode())
+            if errors:
+                print("Child process errors:")
+                print(errors.decode())
+        
+        def GateOpener():
+            child_process = start_child_process()
+            #wait_for_child_process(child_process)
+
         def BiggerBalls(tstmp, bus):
             if (self.moreBalls or self.tempBalls) and self.motor[0] & 32 == 0 and self.throttleMode[5] & 16 == 0:  # override throttle mode to Standard / Sport
                 self.motor[0] = (self.motor[0] + 32) & 255
@@ -66,20 +81,6 @@ class CarState():
                 self.throttleMode[0] = 16
             return SendCAN(tstmp)
 
-        def AdjustRegenBraking(tstmp, bus):
-            if self.lastAPStatus == 0 and not self.autoEngage and self.nextClickTime < tstmp:  # override Regen percent to be 100% at speed up to 30 MPH then steadily decrease to 0% as speed increases to 60+ MPH
-                regenAdjustment = int(min(MAX_ADJUST, max(MIN_ADJUST, ((self.speed - MAX_REGEN_BELOW_SPEED) / REGEN_SLOPE))))
-                self.motor[2] = (self.motor[2] - regenAdjustment) & 255
-                self.motor[6] = (self.motor[6] + 16) & 255
-                self.motor[7] = (self.motor[7] + 16 - regenAdjustment) & 255
-                self.sendCAN.append((tstmp, self.motorPID, bus, bytearray(self.motor)))
-            elif self.nextClickTime >= tstmp and self.motor[2] < 20:
-                self.motor[7] = (self.motor[7] + 16 + 20 - self.motor[2]) & 255
-                self.motor[6] = (self.motor[6] + 16) & 255
-                self.motor[2] = 20
-                self.sendCAN.append((tstmp, self.motorPID, bus, bytearray(self.motor)))                
-            return SendCAN(tstmp)
-
         def Throttle(tstmp, pid, bus, cData):
             self.throttlePID = pid
             self.throttleMode = cData  # get throttle mode
@@ -91,8 +92,6 @@ class CarState():
             self.motor = cData  # capture this throttle data in case throttle or up-swipe meets conditions for override soon
             if self.moreBalls or self.tempBalls:
                 return BiggerBalls(tstmp, bus)
-            else:
-                return AdjustRegenBraking(tstmp, bus)
 
         def DriveState(tstmp, pid, bus, cData):
             self.parked = cData[2] & 2 > 0  # check gear state
@@ -132,6 +131,12 @@ class CarState():
                 self.closeToCenter = False
                 self.nextClickTime = max(self.nextClickTime, tstmp + (0.5 if self.leftStalkStatus in (4,8) else 4.)) # Delay spoof if turn signal is on
             self.blinkersOn = cData[5] > 0
+            self.hazardButtonPressed = True if (cData[0] >> 4) == 1 else False; 
+            if self.hazardButtonPressed :#and not self.parked:
+                print("opening")
+                GateOpener()
+                print("opened : stop")
+
             return SendCAN(tstmp)
 
         def SteerAngle(tstmp, pid, bus, cData):
@@ -180,7 +185,6 @@ class CarState():
                 self.histClick.append(1 if cData[1] >> 4 == 3 and not self.lastStalk >> 4 == 3 else 0)
                 if (cData[1] >> 4) & 7 in [3,4] and self.motor[2] < 20:
                     self.nextClickTime = tstmp + 0.5
-                    AdjustRegenBraking(tstmp, bus)
                 elif (cData[1] >> 4) & 7 in [1,2]:
                     self.autoEngage = 0
             self.lastStalk = cData[1]
@@ -190,9 +194,25 @@ class CarState():
         def AutoPilotState(tstmp, pid, bus, cData):
             # Hands On State: 0 "NOT_REQD" 1 "REQD_DETECTED" 2 "REQD_NOT_DETECTED" 3 "REQD_VISUAL" 4 "REQD_CHIME_1" 5 "REQD_CHIME_2" 6 "REQD_SLOWING" 
             #                 7 "REQD_STRUCK_OUT" 8 "SUSPENDED" ;9 "REQD_ESCALATED_CHIME_1" 10 "REQD_ESCALATED_CHIME_2" 15 "SNA" 
+            self.handsOnStateString = {
+                0 : "NOT_REQD",
+                1 : "REQD_DETECTED",
+                2 : "REQD_NOT_DETECTED",
+                3 : "REQD_VISUAL",
+                4 : "REQD_CHIME_1",
+                5 : "REQD_CHIME_2",
+                6 : "REQD_SLOWING", 
+                7 : "REQD_STRUCK_OUT",
+                8 : "SUSPENDED",
+                9 : "REQD_ESCALATED_CHIME_1",
+                10 : "REQD_ESCALATED_CHIME_2",
+                15 : "SNA" 
+            }
+
             self.handsOnState = (cData[5] >> 2) & 15
             self.autopilotReady = cData[0] & 15 in [2, 3, 5]
             self.chassisBusAvailable = 1
+            #print(f"Hands on state : {self.handsOnStateString[self.handsOnState]}, AP state : {self.autopilotReady}")
             if self.lastAPStatus == 33 and self.handsOnState in [0, 1, 7, 8, 15]:
                 self.nextClickTime = max(self.nextClickTime, tstmp + 0.5)
             return SendCAN(tstmp)
@@ -213,31 +233,36 @@ class CarState():
             return None
 
         def Research(tstmp, pid, bus, cData):
+            PidByteIndex = namedtuple('PidByteIndex', ['pid', 'byte_index'])
             if self.logFile is None:
                 self.monitorPIDs = [[],[]]
                 self.allPIDs = [[],[]]
-                self.baselineBits = [{},{}]
                 self.lastBytes = [{},{}]
                 self.allBitChanges = [{},{}]
-                self.logFile = open('/home/raspilot/raspilot/bitChanges-%0.0f.dat' % (tstmp//60), "a")
+                self.logFile = logging.getLogger('can_research')
+                self.logFile.setLevel(logging.INFO)
+                handler = logging.FileHandler(f'/home/admin/raspilot/bitChanges-{tstmp//60}.dat', mode='a')
+                handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+                self.logFile.addHandler(handler)
 
-            if (len(self.monitorPIDs[bus]) == 0 or pid in self.monitorPIDs[bus]) and not pid in self.allPIDs[bus]:
+            if (len(self.monitorPIDs[bus]) == 0 or pid in self.monitorPIDs[bus]) and pid not in self.allPIDs[bus]:
                 self.allPIDs[bus].append(pid)
                 for b in range(len(cData)):
-                    self.allBitChanges[bus]["%s|%d" % (pid, b)] = 0
-                    self.lastBytes[bus]["%s|%d" % (pid, b)] = cData[b]
+                    index = PidByteIndex(pid, b)
+                    self.allBitChanges[bus][index] = 0
+                    self.lastBytes[bus][index] = cData[b]
 
             if pid in self.allPIDs[bus]:
                 for b in range(len(cData)):
-                    if "%s|%d" % (pid, b) not in self.lastBytes[bus]:
-                        self.lastBytes[bus]["%s|%d" % (pid, b)] = cData[b]
-                        self.allBitChanges[bus]["%s|%d" % (pid, b)] = 0
-                    newBitChanges = self.lastBytes[bus]["%s|%d" % (pid, b)] ^ cData[b]
-                    if self.allBitChanges[bus]["%s|%d" % (pid, b)] != self.allBitChanges[bus]["%s|%d" % (pid, b)] | newBitChanges:
-                        print(int(tstmp), bus, pid, b, self.allBitChanges[bus]["%s|%d" % (pid, b)] ^ newBitChanges, self.allBitChanges[bus]["%s|%d" % (pid, b)] | newBitChanges)
-                        self.logFile.write("%0.0f %d %d %d %d\n" % (tstmp, pid, b, self.allBitChanges[bus]["%s|%d" % (pid, b)] ^ newBitChanges, self.allBitChanges[bus]["%s|%d" % (pid, b)] | newBitChanges))
-                        self.allBitChanges[bus]["%s|%d" % (pid, b)] = self.allBitChanges[bus]["%s|%d" % (pid, b)] | newBitChanges
-                    self.lastBytes[bus]["%s|%d" % (pid, b)] = cData[b]
+                    index = PidByteIndex(pid, b)
+                    if index not in self.lastBytes[bus]:
+                        self.lastBytes[bus][index] = cData[b]
+                        self.allBitChanges[bus][index] = 0
+                    new_bit_changes = self.lastBytes[bus][index] ^ cData[b]
+                    if self.allBitChanges[bus][index] != self.allBitChanges[bus][index] | new_bit_changes:
+                        self.logFile.info(f"{tstmp} : BUS = {bus} : ID = 0x{pid:02X} : Byte number = {b} : 0x{new_bit_changes:02X} 0x{(self.allBitChanges[bus][index] | new_bit_changes):02X}")
+                        self.allBitChanges[bus][index] = self.allBitChanges[bus][index] | new_bit_changes
+                    self.lastBytes[bus][index] = cData[b]
 
         self.Update = [{  # Vehicle Bus
                             280:  DriveState,
