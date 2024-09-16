@@ -241,7 +241,7 @@ class CarState():
                 self.allBitChanges = [{},{}]
                 self.logFile = logging.getLogger('can_research')
                 self.logFile.setLevel(logging.INFO)
-                handler = logging.FileHandler(f'/home/admin/raspilot/bitChanges-{tstmp//60}.dat', mode='a')
+                handler = logging.FileHandler(f'./logs/bitChanges-{tstmp//60}.dat', mode='a')
                 handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
                 self.logFile.addHandler(handler)
 
