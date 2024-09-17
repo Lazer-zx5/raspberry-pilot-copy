@@ -167,17 +167,17 @@ void CarState::LeftStalk(sendCan_t * frame, void * result) {
 }
 
 void CarState::TurnSignal(sendCan_t * frame, void * result) {
-    if (frame->frame_data[5] > 0) {
+    if ((frame->frame_data[5] & 0x03) == 0x01 || (frame->frame_data[5] & 0x03) == 0x02) {
         this->closeToCenter = false;
         double delay = 0.0;
         if (this->leftStalkStatus == 0x04 || this->leftStalkStatus == 0x08) {
             delay = 0.5;
         } else {
-            delay = 2.0;
+            delay = 1.0;
         }
         this->nextClickTime = max(this->nextClickTime, frame->tstmp + delay);
     }
-    this->blinkersOn = frame->frame_data[5] > 0;
+    this->blinkersOn = ((frame->frame_data[5] & 0x03) == 0x01 || (frame->frame_data[5] & 0x03) == 0x02) ? true : false;
     this->hazardButtonPressed = ((frame->frame_data[0] >> 4) == 1) ? true : false; 
     if (this->hazardButtonPressed && !this->parked) {
         this->gate_open();
