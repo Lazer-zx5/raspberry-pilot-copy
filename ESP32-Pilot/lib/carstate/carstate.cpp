@@ -14,6 +14,7 @@ CarState::CarState() {
     lastAutoSteerTime = 0.0; // maybe this should be changed to int or uint = 0.
     accelPedal = 0;
     parked = true; // True
+    gear = PARKED;
     motorPID = 0;
     lastStalk = 0;
     autopilotReady = true; // True
@@ -126,7 +127,12 @@ void CarState::Motor(sendCan_t * frame, void * result) {
 }
 
 void CarState::DriveState(sendCan_t * frame, void * result) {
-    this->parked = (frame->frame_data[2] & 2) > 0;
+    // 0x32 -> P 001 1 0010	
+    // 0x55 -> R 010 1 0101
+    // 0x72 -> N 011 1 0010
+    // 0x95 -> D 100 1 0101
+    this->gear = (Gears)(frame->frame_data[2] >> 5);
+    this->parked = (this->gear == PARKED);
     this->accelPedal = frame->frame_data[4];
     this->tempBalls = this->accelPedal > 200; // override to standard / sport if throttle is above 78%
     BiggerBalls(frame->tstmp, frame->bus);
@@ -136,8 +142,8 @@ void CarState::DriveState(sendCan_t * frame, void * result) {
 
 void CarState::RightScroll(sendCan_t * frame, void * result) {
     if (frame->frame_data[3] != 0x00 && frame->frame_data[3] != 0x55) {
-        if (frame->frame_data[3] <= 0x40 && frame->frame_data[3] >= 0x2C && this->TACCenabled) {
-            this->nextClickTime = max(this->nextClickTime, frame->tstmp + 4);
+        if (frame->frame_data[3] <= 0x40 && frame->frame_data[3] >= 0x2C && (this->TACCenabled || this->APenabled)) {
+            this->nextClickTime = max(this->nextClickTime, frame->tstmp + 10);
         } else if (frame->frame_data[3] < 0x14 && frame->frame_data[3] > 0x01 && !this->APenabled) {
             this->moreBalls = true;
         } else if (frame->frame_data[3] < 0x40 && frame->frame_data[3] > 0x2C && !this->APenabled) {
@@ -244,7 +250,9 @@ bool CarState::EnoughClicksAlready() {
 
 void CarState::RightStalk(sendCan_t * frame, void * result) {
     // TODO: works but with big random delay, needs to be optimized
-    if(this->autopilotReady && 
+    return;
+
+    if (this->autopilotReady && 
         !this->brakePressed &&
         !this->blinkersOn &&
         this->accelPedal < 100 &&

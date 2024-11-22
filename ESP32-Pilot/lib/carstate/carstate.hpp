@@ -4,6 +4,14 @@
 #include "config.hpp"
 #include <Vector.h>
 
+enum Gears {
+    INVALID,
+    PARKED,
+    REVERSE,
+    NEUTRAL,
+    DRIVE
+};
+
 class CarState {
     private:
         sendCan_t sendCanStorage[SEND_CAN_STORAGE_SIZE];
@@ -42,6 +50,7 @@ class CarState {
         uint8_t lastAPStatus;
         double lastAutoSteerTime; // maybe this should be changed to int or uint = 0.
         uint8_t accelPedal;
+        Gears gear;
         bool parked; // True
         uint16_t motorPID;
         uint16_t chassisControlPID;
