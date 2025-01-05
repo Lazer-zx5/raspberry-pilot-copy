@@ -250,7 +250,6 @@ bool CarState::EnoughClicksAlready() {
 
 void CarState::RightStalk(sendCan_t * frame, void * result) {
     // TODO: works but with big random delay, needs to be optimized
-    return;
 
     if (this->autopilotReady && 
         !this->brakePressed &&
